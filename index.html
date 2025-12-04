@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socratic Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              notion: {
+                bg: '#FFFFFF',
+                sidebar: '#F7F7F5',
+                border: '#E9E9E7',
+                text: '#37352F',
+                gray: '#9B9A97',
+                blue: '#EBF5FA',
+                yellow: '#FDF5F2', // Notion actually uses very subtle backgrounds, close to this
+                red: '#FBE4E4',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #F7F7F5;
+        color: #37352F;
+      }
+      /* Custom scrollbar for Notion-feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #D3D1CB;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #AEACA6;
+      }
+      .markdown-body h1 { font-size: 1.875rem; font-weight: 600; margin-bottom: 1rem; margin-top: 2rem; }
+      .markdown-body h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; margin-top: 1.5rem; border-bottom: 1px solid #E9E9E7; padding-bottom: 0.25rem; }
+      .markdown-body h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1rem; }
+      .markdown-body p { margin-bottom: 0.75rem; line-height: 1.6; }
+      .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+      .markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+      .markdown-body blockquote { border-left: 3px solid #37352F; padding-left: 1rem; font-style: italic; margin-bottom: 1rem; }
+      .markdown-body code { font-family: 'JetBrains Mono', monospace; background-color: #F1F0EF; padding: 0.2rem 0.4rem; border-radius: 3px; font-size: 0.85em; color: #EB5757; }
+      .markdown-body pre { background-color: #F7F6F3; padding: 1rem; border-radius: 4px; overflow-x: auto; margin-bottom: 1rem; }
+      .markdown-body pre code { background-color: transparent; color: inherit; padding: 0; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
+    "remark-gfm": "https://aistudiocdn.com/remark-gfm@^4.0.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "mermaid": "https://aistudiocdn.com/mermaid@^11.12.2"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
