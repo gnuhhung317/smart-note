@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale } from 'lucide-react';
+import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale, Trash2, Check } from 'lucide-react';
 import { initializeChat, sendMessageStream, synthesizeNote, generateSessionTitle } from './services/geminiService';
 import { loadSessions, saveSession, createNewSession, deleteSession, getApiKey, saveApiKey } from './services/storageService';
 import { Message, MessageType, Sender, AppState, ChatSession } from './types';
@@ -21,6 +21,9 @@ const App: React.FC = () => {
   const [streamingContent, setStreamingContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  
+  // Track message deletion confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +142,40 @@ const App: React.FC = () => {
                 handleNewChat();
             }
         }
+    }
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (!currentSessionId) return;
+    
+    setSessions(prev => {
+        const idx = prev.findIndex(s => s.id === currentSessionId);
+        if (idx === -1) return prev;
+        
+        const session = prev[idx];
+        const updatedMessages = session.messages.filter(m => m.id !== messageId);
+        
+        const updatedSession = {
+            ...session,
+            messages: updatedMessages,
+            updatedAt: Date.now()
+        };
+        
+        saveSession(updatedSession);
+        
+        const newSessions = [...prev];
+        newSessions[idx] = updatedSession;
+        return newSessions;
+    });
+    setDeleteConfirmId(null);
+  };
+
+  const onDeleteClick = (id: string) => {
+    if (deleteConfirmId === id) {
+        handleDeleteMessage(id);
+    } else {
+        setDeleteConfirmId(id);
+        setTimeout(() => setDeleteConfirmId(null), 3000);
     }
   };
 
@@ -313,38 +350,77 @@ const App: React.FC = () => {
             <div className="space-y-6 pb-24">
             {messages.map((msg) => (
                 <div 
-                key={msg.id} 
-                className={`flex w-full ${msg.sender === Sender.USER ? 'justify-end' : 'justify-start'}`}
+                  key={msg.id} 
+                  className={`flex w-full ${msg.sender === Sender.USER ? 'justify-end' : 'justify-start'} group items-start gap-2 mb-2`}
                 >
-                <div 
-                    className={`max-w-[95%] md:max-w-[85%] rounded-lg p-4 shadow-sm border 
+                  
+                  {/* Delete Action for User (Left Side) */}
+                  {msg.sender === Sender.USER && (
+                    <div className={`mt-4 transition-opacity duration-200 ${deleteConfirmId === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                         <button
+                            onClick={() => onDeleteClick(msg.id)}
+                            className={`p-1.5 rounded-full transition-all ${
+                                deleteConfirmId === msg.id 
+                                ? 'bg-red-100 text-red-600 ring-2 ring-red-200' 
+                                : 'text-gray-300 hover:text-red-500 hover:bg-gray-100'
+                            }`}
+                            title={deleteConfirmId === msg.id ? "Confirm Delete" : "Delete Message"}
+                         >
+                            {deleteConfirmId === msg.id ? <Check className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                         </button>
+                    </div>
+                  )}
+
+                  <div 
+                    className={`max-w-[95%] md:max-w-[85%] rounded-lg p-4 shadow-sm border relative
                     ${msg.type === MessageType.NOTE 
                     ? 'w-full border-gray-200 bg-white ring-1 ring-gray-100' // Note Style
                     : msg.sender === Sender.USER 
                         ? 'bg-notion-sidebar border-transparent text-gray-800' // User Style
                         : 'bg-white border-notion-border text-gray-800' // AI Chat Style
                     }`}
-                >
+                  >
                     {/* Header for Messages */}
                     <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                        {msg.sender === Sender.AI && msg.type === MessageType.NOTE ? 'Synthesized Note' : msg.sender}
-                    </span>
-                    {msg.type === MessageType.NOTE && (
-                        <button 
-                        onClick={() => copyToClipboard(msg.content)}
-                        className="text-xs flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors bg-gray-50 px-2 py-1 rounded"
-                        >
-                        <Copy className="w-3 h-3" /> Copy Markdown
-                        </button>
-                    )}
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            {msg.sender === Sender.AI && msg.type === MessageType.NOTE ? 'Synthesized Note' : msg.sender}
+                        </span>
+                        
+                        {/* Copy Button (Only for Notes) */}
+                        {msg.type === MessageType.NOTE && (
+                            <button 
+                            onClick={() => copyToClipboard(msg.content)}
+                            className="text-xs flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors bg-gray-50 px-2 py-1 rounded"
+                            title="Copy Markdown"
+                            >
+                            <Copy className="w-3 h-3" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Content */}
                     <div className="markdown-body">
-                    <MarkdownRenderer content={msg.content} />
+                        <MarkdownRenderer content={msg.content} />
                     </div>
-                </div>
+                  </div>
+
+                  {/* Delete Action for AI (Right Side) */}
+                  {msg.sender === Sender.AI && (
+                    <div className={`mt-4 transition-opacity duration-200 ${deleteConfirmId === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                         <button
+                            onClick={() => onDeleteClick(msg.id)}
+                            className={`p-1.5 rounded-full transition-all ${
+                                deleteConfirmId === msg.id 
+                                ? 'bg-red-100 text-red-600 ring-2 ring-red-200' 
+                                : 'text-gray-300 hover:text-red-500 hover:bg-gray-100'
+                            }`}
+                            title={deleteConfirmId === msg.id ? "Confirm Delete" : "Delete Message"}
+                         >
+                            {deleteConfirmId === msg.id ? <Check className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                         </button>
+                    </div>
+                  )}
+
                 </div>
             ))}
 
