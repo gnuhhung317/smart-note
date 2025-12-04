@@ -70,25 +70,47 @@ export const synthesizeNote = async (historyContext: string): Promise<string> =>
   });
 
   // We use a fresh single-turn generation for the final synthesis to ensure it strictly follows formatting rules
-  // without carrying over too much conversational baggage, although we pass the history context.
   const prompt = `
-  Based on the following conversation history, create a Final Structured Note optimized for Notion import.
-  
+  Role: You are the "Synthesizer" defined in the System Instructions.
+  Task: Transform the following conversation history into a finalized, structured Notion note.
+
   CONVERSATION HISTORY:
   ${historyContext}
+
+  SYNTHESIS RULES:
+  1. **Context First**: Start with the core concept/why.
+  2. **Visualize**: You MUST generate a Mermaid diagram for processes/flows.
+  3. **Preserve Depth**: Do not summarize away technical details. Keep specific config names, error codes, and numbers.
+  4. **Critical Thinking**: Analyze trade-offs explicitly.
+
+  STRICT OUTPUT FORMAT (Markdown):
+
+  # [Title]
+
+  📅 **Next Review:** ${nextReviewStr}
+
+  > 💡 **Core Concept:** [Simple ELI5 definition]
+
+  ## 1. Technical Deep Dive 🔧
+  *   **Implementation**: Explain the 'Under the hood' architecture and workflow. Retain technical depth.
+  *   **Visual**:
+  \`\`\`mermaid
+  [Insert graph LR or sequenceDiagram here]
+  \`\`\`
+
+  ## 2. Critical Analysis ⚖️
+  *   **Trade-offs Table**:
+  | ✅ Pros | ❌ Cons/Risks | ⚠️ When NOT to use |
+  | :--- | :--- | :--- |
+  | [Content] | [Content] | [Content] |
+
+  ## 3. First Principles 🧠
+  *   **Origin**: Why does this exist? What problem does it solve fundamentally?
+
+  ### Tags
+  [#Tag1, #Tag2, #Tag3]
   
-  STRICT OUTPUT STRUCTURE (Markdown):
-  1. **Title** (H1)
-  2. **Metadata**: Include a line "📅 **Next Review:** ${nextReviewStr}" immediately after the title.
-  3. **Core Concept**: A Blockquote (> 💡) with a simple ELI5 definition.
-  4. **1. Technical Deep Dive**: (H2) Explain the 'Under the hood' architecture/workflow.
-     *   MUST Include a **Mermaid Diagram** in a code block.
-  5. **2. Critical Analysis**: (H2)
-     *   MUST Include a Markdown Table with columns: [✅ Pros | ❌ Cons/Risks | ⚠️ When NOT to use].
-  6. **3. First Principles**: (H2) Explanation of *why* this exists.
-  7. **Tags**: (H3) Analyze content and list 3-5 tags (e.g., #Backend, #Pattern).
-  
-  Output ONLY the Markdown.
+  Output ONLY the Markdown content.
   `;
 
   const response = await ai.models.generateContent({
