@@ -49,6 +49,11 @@ export const createNewSession = (): ChatSession => {
 
 // API Key Management
 export const getApiKey = (): string | null => {
+  // Priority 1: Check Environment Variable
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Priority 2: Check Local Storage
   return localStorage.getItem(API_KEY_STORAGE);
 };
 
