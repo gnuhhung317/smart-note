@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu } from 'lucide-react';
 import { initializeChat, sendMessageStream, synthesizeNote, generateSessionTitle } from './services/geminiService';
-import { loadSessions, saveSession, createNewSession, deleteSession } from './services/storageService';
+import { loadSessions, saveSession, createNewSession, deleteSession, getApiKey, saveApiKey } from './services/storageService';
 import { Message, MessageType, Sender, AppState, ChatSession } from './types';
 import { WELCOME_MESSAGE } from './constants';
 import MarkdownRenderer from './components/MarkdownRenderer';
 import Sidebar from './components/Sidebar';
+import ApiKeyModal from './components/ApiKeyModal';
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -19,8 +20,17 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [streamingContent, setStreamingContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize: Check for API Key
+  useEffect(() => {
+    const key = getApiKey();
+    if (!key) {
+        setIsKeyModalOpen(true);
+    }
+  }, []);
 
   // Initialize: Load sessions
   useEffect(() => {
@@ -38,16 +48,14 @@ const App: React.FC = () => {
   // Initialize Chat Service when session changes
   useEffect(() => {
     const init = async () => {
-        // We re-initialize the chat context whenever we switch sessions
-        // In a real app, we might want to feed previous context to the AI model here
-        // For now, we rely on the prompt context in synthesizeNote
-        await initializeChat(); 
-        
-        // If it's a completely new empty session, we could add a welcome message locally
-        // But we handle that in handleNewChat usually
+        const key = getApiKey();
+        if (key) {
+            // Only initialize if we have a key
+            await initializeChat(); 
+        }
     };
     init();
-  }, [currentSessionId]);
+  }, [currentSessionId, isKeyModalOpen]);
 
   // Auto-scroll
   useEffect(() => {
@@ -94,9 +102,6 @@ const App: React.FC = () => {
       };
       saveSession(updatedSession);
       
-      // Since we are sorting by updatedAt in the sidebar, we need to handle that in the state update or re-fetch
-      // For simplicity in UI state, we just replace the item. 
-      // Ideally, we move it to top of list, but let's keep array stable for now to avoid jumpiness
       const newSessions = [...prev];
       newSessions[idx] = updatedSession;
       return newSessions;
@@ -137,6 +142,12 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveApiKey = (key: string) => {
+      saveApiKey(key);
+      setIsKeyModalOpen(false);
+      initializeChat(); // Re-initialize with new key
+  };
+
   const handleAnalogy = async () => {
     if (appState !== AppState.IDLE || messages.length <= 1) return;
 
@@ -155,7 +166,7 @@ const App: React.FC = () => {
       addMessageToSession(Sender.AI, accumulatedText);
     } catch (error) {
       console.error(error);
-      addMessageToSession(Sender.AI, "I encountered an error generating an analogy.");
+      addMessageToSession(Sender.AI, "I encountered an error. Please check your API Key in settings.");
     } finally {
       setStreamingContent('');
       setAppState(AppState.IDLE);
@@ -180,7 +191,7 @@ const App: React.FC = () => {
       addMessageToSession(Sender.AI, accumulatedText);
     } catch (error) {
       console.error(error);
-      addMessageToSession(Sender.AI, "I encountered an error generating a challenge.");
+      addMessageToSession(Sender.AI, "I encountered an error. Please check your API Key in settings.");
     } finally {
       setStreamingContent('');
       setAppState(AppState.IDLE);
@@ -234,7 +245,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error(error);
-      addMessageToSession(Sender.AI, "I encountered an error processing your request.");
+      addMessageToSession(Sender.AI, "I encountered an error. Please check your API Key in settings.");
       setAppState(AppState.IDLE);
       setStreamingContent('');
     }
@@ -255,6 +266,12 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-notion-bg text-notion-text font-sans overflow-hidden">
       
+      <ApiKeyModal 
+        isOpen={isKeyModalOpen} 
+        onSave={handleSaveApiKey} 
+        onClose={() => setIsKeyModalOpen(false)} 
+      />
+
       {/* Sidebar */}
       <Sidebar 
         sessions={sessions}
@@ -266,6 +283,7 @@ const App: React.FC = () => {
         }}
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
+        onOpenSettings={() => setIsKeyModalOpen(true)}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />

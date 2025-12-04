@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChatSession } from '../types';
-import { MessageSquare, Plus, Trash2, X } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, X, Settings } from 'lucide-react';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -8,6 +8,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (e: React.MouseEvent, id: string) => void;
+  onOpenSettings: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -18,6 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectSession, 
   onNewChat, 
   onDeleteSession,
+  onOpenSettings,
   isOpen,
   onClose
 }) => {
@@ -126,9 +128,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
           
-          {/* User Profile / Footer placeholder */}
-          <div className="p-4 border-t border-notion-border text-xs text-gray-400">
-            Socratic Notes v1.1
+          {/* Footer / Settings */}
+          <div className="p-4 border-t border-notion-border">
+            <button 
+                onClick={onOpenSettings}
+                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900 w-full transition-colors"
+            >
+                <Settings className="w-3.5 h-3.5" />
+                <span>API Settings</span>
+            </button>
+            <div className="mt-2 text-[10px] text-gray-300">
+                Socratic Notes v1.2
+            </div>
           </div>
         </div>
       </div>

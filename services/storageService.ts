@@ -1,6 +1,7 @@
 import { ChatSession } from '../types';
 
 const STORAGE_KEY = 'socratic_notes_sessions';
+const API_KEY_STORAGE = 'socratic_notes_api_key';
 
 export const loadSessions = (): ChatSession[] => {
   try {
@@ -44,4 +45,17 @@ export const createNewSession = (): ChatSession => {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
+};
+
+// API Key Management
+export const getApiKey = (): string | null => {
+  return localStorage.getItem(API_KEY_STORAGE);
+};
+
+export const saveApiKey = (key: string) => {
+  localStorage.setItem(API_KEY_STORAGE, key);
+};
+
+export const removeApiKey = () => {
+  localStorage.removeItem(API_KEY_STORAGE);
 };

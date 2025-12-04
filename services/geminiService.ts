@@ -1,26 +1,32 @@
 import { GoogleGenAI, Chat } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "../constants";
+import { getApiKey } from "./storageService";
 
 let chatSession: Chat | null = null;
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error("API Key not found");
+    throw new Error("API Key not found in storage");
   }
   return new GoogleGenAI({ apiKey });
 };
 
 export const initializeChat = async () => {
-  const ai = getClient();
-  chatSession = ai.chats.create({
-    model: 'gemini-2.5-flash',
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 0.7, 
-    },
-  });
-  return chatSession;
+  try {
+    const ai = getClient();
+    chatSession = ai.chats.create({
+      model: 'gemini-2.5-flash',
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.7, 
+      },
+    });
+    return chatSession;
+  } catch (error) {
+    console.warn("Chat initialization paused: Waiting for API Key.");
+    return null;
+  }
 };
 
 export const sendMessageStream = async (message: string, onChunk: (text: string) => void) => {
@@ -29,7 +35,7 @@ export const sendMessageStream = async (message: string, onChunk: (text: string)
   }
 
   if (!chatSession) {
-    throw new Error("Failed to initialize chat session");
+    throw new Error("Failed to initialize chat session. Please check your API Key.");
   }
 
   try {
