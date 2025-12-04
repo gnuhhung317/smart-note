@@ -56,15 +56,12 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onSave, onClose }) =>
 
         {/* Footer */}
         <div className="bg-gray-50 px-6 py-4 border-t border-notion-border flex justify-end gap-3">
-             {/* Only show cancel if we are just editing, not mandatory. But for simplicity, we assume mandatory first time. */}
-             {apiKey.length === 0 && (
-                 <button 
+             <button 
                  onClick={onClose}
                  className="text-gray-500 text-sm hover:text-gray-800 px-3 py-2"
-                >
+            >
                  Cancel
-                </button>
-             )}
+            </button>
             <button
                 onClick={() => {
                     if (apiKey.trim()) onSave(apiKey.trim());

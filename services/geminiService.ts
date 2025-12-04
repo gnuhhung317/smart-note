@@ -1,8 +1,9 @@
-import { GoogleGenAI, Chat } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "../constants";
 import { getApiKey } from "./storageService";
 
-let chatSession: Chat | null = null;
+// Use 'any' for the chat session to avoid strict type import issues with the SDK
+let chatSession: any | null = null;
 
 const getClient = () => {
   const apiKey = getApiKey();
@@ -116,9 +117,6 @@ export const synthesizeNote = async (historyContext: string): Promise<string> =>
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
-    config: {
-        thinkingConfig: { thinkingBudget: 0 } // Disable thinking for faster formatting tasks
-    }
   });
 
   return response.text || "Failed to generate note.";
