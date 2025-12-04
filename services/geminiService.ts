@@ -72,46 +72,24 @@ export const synthesizeNote = async (historyContext: string): Promise<string> =>
 
   // We use a fresh single-turn generation for the final synthesis to ensure it strictly follows formatting rules
   const prompt = `
-  Role: You are the "Synthesizer" defined in the System Instructions.
-  Task: Transform the following conversation history into a finalized, structured Notion note.
+  Role: You are the "Synthesizer".
+  Task: Transform the conversation history into a finalized, structured Notion note following these STRICT rules.
 
   CONVERSATION HISTORY:
   ${historyContext}
 
-  SYNTHESIS RULES:
-  1. **Context First**: Start with the core concept/why.
-  2. **Visualize**: You MUST generate a Mermaid diagram for processes/flows.
-  3. **Preserve Depth**: Do not summarize away technical details. Keep specific config names, error codes, and numbers.
-  4. **Critical Thinking**: Analyze trade-offs explicitly.
-
-  STRICT OUTPUT FORMAT (Markdown):
-
-  # [Title]
-
-  📅 **Next Review:** ${nextReviewStr}
-
-  > 💡 **Core Concept:** [Simple ELI5 definition]
-
-  ## 1. Technical Deep Dive 🔧
-  *   **Implementation**: Explain the 'Under the hood' architecture and workflow. Retain technical depth.
-  *   **Visual**:
-  \`\`\`mermaid
-  [Insert graph LR or sequenceDiagram here]
-  \`\`\`
-
-  ## 2. Critical Analysis ⚖️
-  *   **Trade-offs Table**:
-  | ✅ Pros | ❌ Cons/Risks | ⚠️ When NOT to use |
-  | :--- | :--- | :--- |
-  | [Content] | [Content] | [Content] |
-
-  ## 3. First Principles 🧠
-  *   **Origin**: Why does this exist? What problem does it solve fundamentally?
+  SYNTHESIS RULES (PHASE 2):
+  RULE 0: ENOUGH KNOWLEDGE. Capture 100% of the insight from the chat, but cut the fluff.
+  RULE 1: CONTEXT FIRST. Never start with technical details. Always start with the "Why" or "Core Concept". Use a Blockquote (> 💡) for the one-sentence summary.
+  RULE 2: VISUALIZE COMPLEXITY. If the chat discusses a process, flow, or hierarchy, you MUST generate a Mermaid diagram (\`graph LR\` or \`sequenceDiagram\`).
+  RULE 3: PRESERVE DEPTH. Do not dumb down. Retain specific technical details (numbers, config names, error codes). Use \`Code Blocks\` for data and **Bold** for key terms.
+  RULE 4: CRITICAL THINKING. If the topic involves choices, include a comparison (Table or Pros/Cons).
+  RULE 5: ORGANIZE LOGICALLY. Use H2 (##) for main sections. End with tags.
 
   ### Tags
   [#Tag1, #Tag2, #Tag3]
   
-  Output ONLY the Markdown content.
+  Generate ONLY the Markdown content. Do not add preamble.
   `;
 
   const response = await ai.models.generateContent({
