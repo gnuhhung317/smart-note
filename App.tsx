@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu } from 'lucide-react';
+import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale } from 'lucide-react';
 import { initializeChat, sendMessageStream, synthesizeNote, generateSessionTitle } from './services/geminiService';
 import { loadSessions, saveSession, createNewSession, deleteSession, getApiKey, saveApiKey } from './services/storageService';
 import { Message, MessageType, Sender, AppState, ChatSession } from './types';
@@ -148,10 +148,11 @@ const App: React.FC = () => {
       initializeChat(); // Re-initialize with new key
   };
 
-  const handleAnalogy = async () => {
-    if (appState !== AppState.IDLE || messages.length <= 1) return;
+  // --- Helper Functions for "Spectrum of Understanding" ---
 
-    const userMsg = "Explain the core concept we are discussing using a simple, everyday analogy (Explain like I'm 5).";
+  const triggerAiResponse = async (userMsg: string) => {
+    if (appState !== AppState.IDLE || messages.length <= 1) return;
+    
     addMessageToSession(Sender.USER, userMsg);
     setAppState(AppState.CHATTING);
     setStreamingContent('');
@@ -173,29 +174,20 @@ const App: React.FC = () => {
     }
   };
 
-  const handleChallenge = async () => {
-    if (appState !== AppState.IDLE || messages.length <= 1) return;
+  const handleAnalogy = () => {
+    triggerAiResponse("Explain the core concept we are discussing using a simple, everyday analogy (Explain like I'm 5).");
+  };
 
-    const userMsg = "Challenge my current understanding with a critical, probing question. Identify potential flaws in my logic or edge cases I missed.";
-    addMessageToSession(Sender.USER, userMsg);
-    setAppState(AppState.CHATTING);
-    setStreamingContent('');
+  const handleDeepDive = () => {
+    triggerAiResponse("Let's go to Level 2: The Engineer. Explain the 'Under the hood' implementation details, architecture, and data flow. Use precise technical terminology.");
+  };
 
-    try {
-      let accumulatedText = "";
-      await sendMessageStream(userMsg, (chunk) => {
-        accumulatedText += chunk;
-        setStreamingContent(accumulatedText);
-      });
-      
-      addMessageToSession(Sender.AI, accumulatedText);
-    } catch (error) {
-      console.error(error);
-      addMessageToSession(Sender.AI, "I encountered an error. Please check your API Key in settings.");
-    } finally {
-      setStreamingContent('');
-      setAppState(AppState.IDLE);
-    }
+  const handleArchitect = () => {
+    triggerAiResponse("Let's go to Level 3: The Architect. Analyze the Trade-offs (Pros/Cons), Constraints, and Alternatives. When should I NOT use this solution?");
+  };
+
+  const handleChallenge = () => {
+    triggerAiResponse("Challenge my current understanding with a critical, probing question. Identify potential flaws in my logic or edge cases I missed.");
   };
 
   const handleSend = async () => {
@@ -225,7 +217,7 @@ const App: React.FC = () => {
         setAppState(AppState.SYNTHESIZING);
         const history = messages.map(m => `${m.sender}: ${m.content}`).join('\n') + `\nUSER: ${userMsg}`;
         
-        setStreamingContent("Synthesizing your note with structural analysis...");
+        setStreamingContent("Synthesizing your note with Technical Deep Dive and Critical Analysis...");
         
         const noteContent = await synthesizeNote(history);
         setStreamingContent('');
@@ -262,6 +254,8 @@ const App: React.FC = () => {
       handleSend();
     }
   };
+
+  const isToolsDisabled = messages.length <= 1 || appState !== AppState.IDLE;
 
   return (
     <div className="flex h-screen bg-notion-bg text-notion-text font-sans overflow-hidden">
@@ -387,32 +381,63 @@ const App: React.FC = () => {
                 rows={1}
                 style={{ minHeight: '52px' }}
                 />
-                <div className="flex items-center gap-2 pb-2 pr-1">
+                
+                {/* Tools / Actions */}
+                <div className="flex items-center gap-1.5 pb-2 pr-1">
+                    
                 <button
                     onClick={handleAnalogy}
-                    disabled={messages.length <= 1 || appState !== AppState.IDLE}
+                    disabled={isToolsDisabled}
                     className={`p-2 rounded-full transition-all ${
-                    messages.length > 1 && appState === AppState.IDLE
+                    !isToolsDisabled
                         ? 'bg-white text-yellow-600 hover:bg-yellow-50 border border-yellow-200 shadow-sm' 
                         : 'bg-transparent text-gray-300 cursor-not-allowed'
                     }`}
-                    title="Generate Analogy (ELI5)"
+                    title="ELI5 Analogy (Level 1)"
                 >
                     <Lightbulb className="w-5 h-5" />
                 </button>
 
                 <button
-                    onClick={handleChallenge}
-                    disabled={messages.length <= 1 || appState !== AppState.IDLE}
+                    onClick={handleDeepDive}
+                    disabled={isToolsDisabled}
                     className={`p-2 rounded-full transition-all ${
-                    messages.length > 1 && appState === AppState.IDLE
+                    !isToolsDisabled
+                        ? 'bg-white text-blue-600 hover:bg-blue-50 border border-blue-200 shadow-sm' 
+                        : 'bg-transparent text-gray-300 cursor-not-allowed'
+                    }`}
+                    title="Under the Hood / Deep Dive (Level 2)"
+                >
+                    <Wrench className="w-5 h-5" />
+                </button>
+
+                 <button
+                    onClick={handleArchitect}
+                    disabled={isToolsDisabled}
+                    className={`p-2 rounded-full transition-all ${
+                    !isToolsDisabled
+                        ? 'bg-white text-orange-600 hover:bg-orange-50 border border-orange-200 shadow-sm' 
+                        : 'bg-transparent text-gray-300 cursor-not-allowed'
+                    }`}
+                    title="Architect / Trade-offs (Level 3)"
+                >
+                    <Scale className="w-5 h-5" />
+                </button>
+
+                <button
+                    onClick={handleChallenge}
+                    disabled={isToolsDisabled}
+                    className={`p-2 rounded-full transition-all ${
+                    !isToolsDisabled
                         ? 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200 shadow-sm' 
                         : 'bg-transparent text-gray-300 cursor-not-allowed'
                     }`}
-                    title="Challenge Me (Socratic Question)"
+                    title="Challenge Me"
                 >
                     <BrainCircuit className="w-5 h-5" />
                 </button>
+
+                <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
                 <button
                     onClick={handleSend}
@@ -433,7 +458,7 @@ const App: React.FC = () => {
             </div>
             <div className="text-center mt-2">
                 <p className="text-xs text-gray-400">
-                Pro-tip: Ask AI to "Challenge me" on a topic, or type "Finalize" to create the Notion note.
+                Pro-tip: Use 💡 for Basics, 🔧 for Tech Deep Dive, ⚖️ for Trade-offs.
                 </p>
             </div>
             </div>

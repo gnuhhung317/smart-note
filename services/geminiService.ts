@@ -77,14 +77,16 @@ export const synthesizeNote = async (historyContext: string): Promise<string> =>
   CONVERSATION HISTORY:
   ${historyContext}
   
-  REQUIREMENTS:
-  1. Title (H1)
-  2. Metadata: Include a line "📅 **Next Review:** ${nextReviewStr}" immediately after the title.
-  3. Core Concept (Callout/Blockquote)
-  4. Structured Sections (H2/H3)
-  5. Mermaid Diagram (Code block)
-  6. Actionable items or Review questions
-  7. Tags: Analyze the content and automatically generate 3-5 relevant semantic tags (e.g., #Backend, #Learning, #Architecture, #Idea). Create a "### Tags" section at the very bottom and list them.
+  STRICT OUTPUT STRUCTURE (Markdown):
+  1. **Title** (H1)
+  2. **Metadata**: Include a line "📅 **Next Review:** ${nextReviewStr}" immediately after the title.
+  3. **Core Concept**: A Blockquote (> 💡) with a simple ELI5 definition.
+  4. **1. Technical Deep Dive**: (H2) Explain the 'Under the hood' architecture/workflow.
+     *   MUST Include a **Mermaid Diagram** in a code block.
+  5. **2. Critical Analysis**: (H2)
+     *   MUST Include a Markdown Table with columns: [✅ Pros | ❌ Cons/Risks | ⚠️ When NOT to use].
+  6. **3. First Principles**: (H2) Explanation of *why* this exists.
+  7. **Tags**: (H3) Analyze content and list 3-5 tags (e.g., #Backend, #Pattern).
   
   Output ONLY the Markdown.
   `;
