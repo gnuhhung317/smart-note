@@ -1,4 +1,8 @@
 
+
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale, Trash2, Check, Mic, MicOff } from 'lucide-react';
 import { initializeChat, sendMessageStream, synthesizeNote, generateSessionTitle } from './services/geminiService';
@@ -12,6 +16,10 @@ import DecisionLab from './components/DecisionLab';
 import SixHats from './components/SixHats';
 import FirstPrinciples from './components/FirstPrinciples';
 import DebateArena from './components/DebateArena';
+import DynamicThinkTank from './components/DynamicThinkTank';
+import ShadowWork from './components/ShadowWork';
+import FiveWhys from './components/FiveWhys';
+import DevilsDictionary from './components/DevilsDictionary';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 const App: React.FC = () => {
@@ -360,6 +368,14 @@ const App: React.FC = () => {
             return <FirstPrinciples language={language} />;
         case ViewMode.DEBATE_ARENA:
             return <DebateArena language={language} />;
+        case ViewMode.DYNAMIC_THINK_TANK:
+            return <DynamicThinkTank language={language} />;
+        case ViewMode.SHADOW_WORK:
+            return <ShadowWork language={language} />;
+        case ViewMode.FIVE_WHYS:
+            return <FiveWhys language={language} />;
+        case ViewMode.DEVILS_DICTIONARY:
+            return <DevilsDictionary language={language} />;
         case ViewMode.CHAT:
         default:
             return (

@@ -1,8 +1,10 @@
 
+
+
 import { GoogleGenAI } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "../constants";
 import { getApiKey } from "./storageService";
-import { SixHatsResult, DecisionResult, DebateDifficulty, DebateScorecard, Language } from "../types";
+import { SixHatsResult, DecisionResult, DebateDifficulty, DebateScorecard, Language, ThinkTankPersonas, FiveWhysResult, DevilsDictionaryResult } from "../types";
 
 // Use 'any' for the chat session to avoid strict type import issues with the SDK
 let chatSession: any | null = null;
@@ -380,6 +382,326 @@ export const gradeDebate = async (history: {role: string, content: string}[], to
     try {
         return JSON.parse(response.text || "{}");
     } catch (e) {
+        return null;
+    }
+};
+
+// --- DYNAMIC THINK TANK SERVICES ---
+
+export const getThinkTankPersonas = async (userIdea: string, lang: Language): Promise<ThinkTankPersonas | null> => {
+    const ai = getClient();
+    const systemInstruction = `
+    Role: You are an AI Manager. Your task is to analyze the user's request and assign 2 'Personas' to discuss it.
+    IMPORTANT: The two personas must have CONTRASTING viewpoints or complementary but distinct expertise to foster deep discussion.
+    
+    Return strict JSON:
+    {
+      "persona_a": {
+        "role": "Role Name (e.g. Literary Critic)",
+        "goal": "Primary Goal (e.g. Ensure plot logic)"
+      },
+      "persona_b": {
+        "role": "Role Name (e.g. Historical Expert)",
+        "goal": "Primary Goal (e.g. Verify historical accuracy)"
+      }
+    }
+    ${getLangPrompt(lang)}
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: userIdea,
+        config: {
+            systemInstruction,
+            responseMimeType: "application/json"
+        }
+    });
+
+    try {
+        return JSON.parse(response.text || "{}");
+    } catch (e) {
+        return null;
+    }
+};
+
+export const runThinkTankTurn = async (
+    history: {role: string, content: string}[], 
+    userIdea: string,
+    currentPersona: {role: string, goal: string}, 
+    partnerPersona: {role: string, goal: string},
+    currentRound: number,
+    maxRounds: number,
+    lang: Language
+): Promise<string> => {
+    const ai = getClient();
+    
+    // Check if the last message was from Manager/User
+    const lastMessage = history[history.length - 1];
+    const isManagerIntervention = lastMessage && lastMessage.role === 'Manager';
+
+    // Dynamic instructions based on progress
+    let phaseInstruction = "";
+    if (currentRound <= 2) {
+        phaseInstruction = "Phase: EXPLORATION. Generate diverse ideas. Do not agree too early. Challenge assumptions. Offer new angles.";
+    } else if (currentRound < maxRounds - 1) {
+        phaseInstruction = "Phase: CRITIQUE & REFINE. Find flaws in the partner's ideas and propose fixes. Deepen the details.";
+    } else {
+        phaseInstruction = "Phase: CONVERGENCE. Start wrapping up the main points. Work towards a consensus solution.";
+    }
+
+    // Override phase instruction if Manager intervenes
+    if (isManagerIntervention) {
+        phaseInstruction = `
+        ⚠️ CRITICAL OVERRIDE: THE MANAGER HAS SPOKEN.
+        The last message is from the "Manager" (User).
+        You MUST acknowledge their feedback immediately.
+        Pivot your discussion to address the Manager's concern or direction.
+        Do not ignore the Manager.
+        `;
+    }
+
+    const systemInstruction = `
+# CONTEXT
+You are participating in a deep Brainstorming session.
+Your Role: ${currentPersona.role}
+Your Goal: ${currentPersona.goal}
+Your Partner: ${partnerPersona.role}
+Current Round: ${currentRound} of ${maxRounds}
+${phaseInstruction}
+
+# USER IDEA
+"${userIdea}"
+
+# INSTRUCTIONS
+1. **Analyze & Expand:** Based on your expertise, add ideas, point out flaws, or suggest improvements to the original idea.
+2. **Interact:** Read your partner's opinions carefully (in chat history) to counter or supplement. Do not repeat what has been said.
+3. **Attitude:** Professional, Constructive, Insightful.
+4. **Stop Condition (IMPORTANT):**
+   - You MUST continue discussing until at least Round ${maxRounds - 1}.
+   - ONLY if you are in the final rounds AND the idea is fully mature, end with token: [[DONE]]
+   - Otherwise, end with a provocative question or a new angle to keep the discussion alive.
+
+# FORMAT
+Present your opinion clearly using bullet points.
+${getLangPrompt(lang)}
+    `;
+
+    // Convert history for model (flattened context)
+    const historyText = history.map(h => `${h.role}: ${h.content}`).join('\n\n');
+    const prompt = `Conversation History So Far:\n${historyText}\n\nYour Turn (${currentPersona.role}):`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { systemInstruction }
+    });
+
+    return response.text || "...";
+};
+
+export const synthesizeThinkTank = async (
+    history: {role: string, content: string}[], 
+    userIdea: string,
+    lang: Language
+): Promise<string> => {
+    const ai = getClient();
+    const historyText = history.map(h => `${h.role}: ${h.content}`).join('\n\n');
+    
+    const systemInstruction = `
+# TASK
+You have observed a discussion between two experts about the idea: "${userIdea}".
+
+Task: Synthesize this into a complete Plan/Content. 
+Remove redundant arguments, keep only the finalized solution and key insights.
+Use Markdown with H2, H3, Bullet points.
+${getLangPrompt(lang)}
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: historyText,
+        config: { systemInstruction }
+    });
+
+    return response.text || "Failed to synthesize.";
+}
+
+// --- SHADOW WORK SERVICE ---
+
+export const runShadowWorkChat = async (
+    history: {role: string, content: string}[], 
+    message: string, 
+    lang: Language
+): Promise<string> => {
+    const ai = getClient();
+    
+    const systemInstruction = `
+    # ROLE
+    You are a "Shadow Work Companion" (based on Carl Jung's psychology).
+    Your Purpose: To help the user uncover hidden subconscious triggers, repressed emotions, and the "Shadow Self".
+    
+    # CRITICAL RULES
+    1. **NO ADVICE**: Do not offer solutions, fixes, or superficial comfort. Do not say "You should try X" or "Everything will be okay".
+    2. **BE A MIRROR**: Reflect the user's emotion back to them.
+    3. **ASK "THE ORIGIN"**:
+       - "When was the first time you felt this specific sensation?"
+       - "Who does this person remind you of?"
+       - "What part of *you* feels threatened by this?"
+    4. **TONE**: Calm, slow, intimate, non-judgmental, slightly mysterious but safe.
+    5. **SAFETY**: If the user expresses intent of self-harm, IMMEDIATELY provide standard safety resources and stop the shadow work.
+
+    # GOAL
+    Move the user from "Reacting to the outside world" to "Looking inward".
+    
+    ${getLangPrompt(lang)}
+    `;
+
+    // Flatten history for context
+    const chatContents = history.map(h => ({
+        role: h.role === 'AI' ? 'model' : 'user',
+        parts: [{ text: h.content }]
+    }));
+
+    // Add current user message
+    const contents = [...chatContents, { role: 'user', parts: [{ text: message }] }];
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: contents,
+        config: { systemInstruction }
+    });
+
+    return response.text || "...";
+};
+
+// --- 5 WHYS SERVICES ---
+
+export const getFiveWhysQuestion = async (
+    history: {question: string, answer: string}[], 
+    originalProblem: string,
+    lang: Language
+): Promise<string> => {
+    const ai = getClient();
+    
+    // Create prompt from history
+    const context = history.map((h, i) => `Why ${i+1}: ${h.question}\nAnswer ${i+1}: ${h.answer}`).join('\n\n');
+    const previousAnswer = history.length > 0 ? history[history.length - 1].answer : originalProblem;
+
+    const systemInstruction = `
+    You are a "5 Whys" Investigator (Toyota Method).
+    Your Goal: Ask the next logical "Why?" question to dig deeper into the user's last answer.
+    
+    Rules:
+    1. Be concise (max 15 words).
+    2. Do NOT solve the problem yet. Just probe.
+    3. Focus on process/system failures, not blaming individuals.
+    4. Return ONLY the question string.
+    
+    ${getLangPrompt(lang)}
+    `;
+
+    const prompt = `
+    Original Problem: "${originalProblem}"
+    Past Chain:
+    ${context}
+    
+    User's Last Answer: "${previousAnswer}"
+    
+    Generate the next "Why?" question:
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { systemInstruction }
+    });
+
+    return response.text || "Why?";
+};
+
+export const getFiveWhysAnalysis = async (
+    history: {question: string, answer: string}[],
+    originalProblem: string,
+    lang: Language
+): Promise<FiveWhysResult | null> => {
+    const ai = getClient();
+    const context = history.map((h, i) => `Level ${i+1}: ${h.question} -> ${h.answer}`).join('\n');
+    
+    const systemInstruction = `
+    You are a "Root Cause Master". Analyze the 5 Whys chain.
+    
+    Output JSON:
+    {
+      "root_cause": "The fundamental systemic failure (not just a symptom).",
+      "solution": "A concrete, actionable fix for the root cause.",
+      "advice": "One piece of wisdom about this type of problem."
+    }
+    ${getLangPrompt(lang)}
+    `;
+
+    const prompt = `
+    Problem: ${originalProblem}
+    Investigation Chain:
+    ${context}
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { 
+            systemInstruction,
+            responseMimeType: "application/json"
+        }
+    });
+
+    try {
+        return JSON.parse(response.text || "{}");
+    } catch (e) {
+        console.error("Failed to parse 5 Whys JSON", e);
+        return null;
+    }
+};
+
+// --- DEVIL'S DICTIONARY SERVICE ---
+
+export const runDevilsDictionary = async (word: string, lang: Language): Promise<DevilsDictionaryResult | null> => {
+    const ai = getClient();
+    
+    const systemInstruction = `
+    # ROLE
+    You are the author of "The Devil's Dictionary" (reincarnated Ambrose Bierce & Oscar Wilde).
+    
+    # TASK
+    Redefine the user's word with pure cynicism, satire, irony, and dark humor.
+    
+    # RULES
+    1. **NO LITERAL DEFINITIONS**: Do not explain what the word actually means.
+    2. **STYLE**: Aphoristic, sharp, witty, slightly cruel but deeply true.
+    3. **TONE**: Victorian cynicism mixed with modern despair.
+    
+    # OUTPUT JSON
+    {
+      "word": "The input word (capitalized)",
+      "definition": "The satirical definition (1-2 sentences max).",
+      "usage": "A context sentence using the word in a cynical way."
+    }
+    
+    ${getLangPrompt(lang)}
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: word,
+        config: { 
+            systemInstruction,
+            responseMimeType: "application/json"
+        }
+    });
+
+    try {
+        return JSON.parse(response.text || "{}");
+    } catch (e) {
+        console.error("Failed to parse Devil's Dictionary JSON", e);
         return null;
     }
 };

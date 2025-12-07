@@ -1,4 +1,5 @@
 
+
 export enum Sender {
   USER = 'USER',
   AI = 'AI'
@@ -36,7 +37,11 @@ export enum ViewMode {
   DECISION_LAB = 'DECISION_LAB',
   SIX_HATS = 'SIX_HATS',
   FIRST_PRINCIPLES = 'FIRST_PRINCIPLES',
-  DEBATE_ARENA = 'DEBATE_ARENA'
+  DEBATE_ARENA = 'DEBATE_ARENA',
+  DYNAMIC_THINK_TANK = 'DYNAMIC_THINK_TANK',
+  SHADOW_WORK = 'SHADOW_WORK',
+  FIVE_WHYS = 'FIVE_WHYS',
+  DEVILS_DICTIONARY = 'DEVILS_DICTIONARY'
 }
 
 export type Language = 'en' | 'vi';
@@ -91,4 +96,29 @@ export interface DebateScorecard {
   commentary: string;
   critical_feedback: string;
   best_point: string;
+}
+
+// Dynamic Think Tank Types
+export interface Persona {
+    role: string;
+    goal: string;
+}
+
+export interface ThinkTankPersonas {
+    persona_a: Persona;
+    persona_b: Persona;
+}
+
+// 5 Whys Types
+export interface FiveWhysResult {
+    root_cause: string;
+    solution: string;
+    advice: string;
+}
+
+// Devil's Dictionary Types
+export interface DevilsDictionaryResult {
+    word: string;
+    definition: string;
+    usage: string;
 }

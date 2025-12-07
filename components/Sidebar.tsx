@@ -1,7 +1,9 @@
 
-import React from 'react';
+
+
+import React, { useState } from 'react';
 import { ChatSession, Language } from '../types';
-import { MessageSquare, Plus, Trash2, X, Settings, Scale, Layers, Box, Swords, Globe } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, X, Settings, Scale, Layers, Box, Swords, Globe, BrainCircuit, Ghost, Target, ChevronDown, ChevronUp, Flame } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface SidebarProps {
@@ -33,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   language,
   onToggleLanguage
 }) => {
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false);
   
   const text = {
       en: {
@@ -41,11 +44,17 @@ const Sidebar: React.FC<SidebarProps> = ({
           sixHats: "360° Analysis",
           firstPrinciples: "First Principles",
           debateArena: "Debate Arena",
+          thinkTank: "Dynamic Think-Tank",
+          shadowWork: "Shadow Work",
+          fiveWhys: "5 Whys Master",
+          devilsDictionary: "Devil's Dictionary",
           myNotes: "My Notes",
           settings: "API Settings",
           today: "Today",
           yesterday: "Yesterday",
-          noHistory: "No history yet."
+          noHistory: "No history yet.",
+          showMore: "Show more tools",
+          showLess: "Show less"
       },
       vi: {
           thinkingTools: "Công cụ Tư duy",
@@ -53,11 +62,17 @@ const Sidebar: React.FC<SidebarProps> = ({
           sixHats: "Phân tích 360°",
           firstPrinciples: "Nguyên lý Gốc",
           debateArena: "Đấu trường Tranh biện",
+          thinkTank: "Bể Tư Duy Động",
+          shadowWork: "Bạn Đồng Hành Tâm Lý",
+          fiveWhys: "Bậc Thầy 5 Whys",
+          devilsDictionary: "Từ Điển Của Quỷ",
           myNotes: "Ghi chú của tôi",
           settings: "Cài đặt API",
           today: "Hôm nay",
           yesterday: "Hôm qua",
-          noHistory: "Chưa có lịch sử."
+          noHistory: "Chưa có lịch sử.",
+          showMore: "Xem thêm công cụ",
+          showLess: "Thu gọn"
       }
   };
   
@@ -86,6 +101,20 @@ const Sidebar: React.FC<SidebarProps> = ({
     onChangeView(view);
     if (window.innerWidth < 768) onClose();
   }
+
+  // Tools Configuration
+  const tools = [
+      { id: ViewMode.DECISION_LAB, icon: Scale, label: t.decisionLab },
+      { id: ViewMode.SIX_HATS, icon: Layers, label: t.sixHats },
+      { id: ViewMode.FIRST_PRINCIPLES, icon: Box, label: t.firstPrinciples },
+      { id: ViewMode.DEBATE_ARENA, icon: Swords, label: t.debateArena },
+      { id: ViewMode.DYNAMIC_THINK_TANK, icon: BrainCircuit, label: t.thinkTank },
+      { id: ViewMode.SHADOW_WORK, icon: Ghost, label: t.shadowWork, color: 'text-indigo-900', bg: 'bg-indigo-100' },
+      { id: ViewMode.FIVE_WHYS, icon: Target, label: t.fiveWhys, color: 'text-teal-900', bg: 'bg-teal-100' },
+      { id: ViewMode.DEVILS_DICTIONARY, icon: Flame, label: t.devilsDictionary, color: 'text-red-900', bg: 'bg-red-100' },
+  ];
+
+  const visibleTools = isToolsExpanded ? tools : tools.slice(0, 6);
 
   return (
     <>
@@ -120,38 +149,30 @@ const Sidebar: React.FC<SidebarProps> = ({
                   {t.thinkingTools}
                 </h3>
                 <div className="space-y-1">
-                    <button
-                        onClick={() => handleToolClick(ViewMode.DECISION_LAB)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors
-                            ${currentView === ViewMode.DECISION_LAB ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-100'}
-                        `}
-                    >
-                        <Scale className="w-4 h-4" /> {t.decisionLab}
-                    </button>
-                    <button
-                        onClick={() => handleToolClick(ViewMode.SIX_HATS)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors
-                            ${currentView === ViewMode.SIX_HATS ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-100'}
-                        `}
-                    >
-                        <Layers className="w-4 h-4" /> {t.sixHats}
-                    </button>
-                     <button
-                        onClick={() => handleToolClick(ViewMode.FIRST_PRINCIPLES)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors
-                            ${currentView === ViewMode.FIRST_PRINCIPLES ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-100'}
-                        `}
-                    >
-                        <Box className="w-4 h-4" /> {t.firstPrinciples}
-                    </button>
-                     <button
-                        onClick={() => handleToolClick(ViewMode.DEBATE_ARENA)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors
-                            ${currentView === ViewMode.DEBATE_ARENA ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-100'}
-                        `}
-                    >
-                        <Swords className="w-4 h-4" /> {t.debateArena}
-                    </button>
+                    {visibleTools.map(tool => (
+                        <button
+                            key={tool.id}
+                            onClick={() => handleToolClick(tool.id)}
+                            className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors
+                                ${currentView === tool.id 
+                                    ? (tool.bg ? `${tool.bg} ${tool.color} font-medium` : 'bg-gray-200 text-gray-900 font-medium') 
+                                    : 'text-gray-600 hover:bg-gray-100'}
+                            `}
+                        >
+                            <tool.icon className="w-4 h-4" /> {tool.label}
+                        </button>
+                    ))}
+                    
+                    {/* Expand/Collapse Button */}
+                    {tools.length > 6 && (
+                        <button 
+                            onClick={() => setIsToolsExpanded(!isToolsExpanded)}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors mt-1"
+                        >
+                            {isToolsExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            {isToolsExpanded ? t.showLess : t.showMore}
+                        </button>
+                    )}
                 </div>
             </div>
 
