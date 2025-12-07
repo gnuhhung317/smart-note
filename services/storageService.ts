@@ -1,7 +1,9 @@
-import { ChatSession } from '../types';
+
+import { ChatSession, Language } from '../types';
 
 const STORAGE_KEY = 'socratic_notes_sessions';
 const API_KEY_STORAGE = 'socratic_notes_api_key';
+const LANGUAGE_STORAGE = 'socratic_notes_language';
 
 export const loadSessions = (): ChatSession[] => {
   try {
@@ -68,4 +70,13 @@ export const saveApiKey = (key: string) => {
 
 export const removeApiKey = () => {
   localStorage.removeItem(API_KEY_STORAGE);
+};
+
+// Language Management
+export const getStoredLanguage = (): Language => {
+    return (localStorage.getItem(LANGUAGE_STORAGE) as Language) || 'vi'; // Default to Vietnamese
+};
+
+export const saveStoredLanguage = (lang: Language) => {
+    localStorage.setItem(LANGUAGE_STORAGE, lang);
 };
