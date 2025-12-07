@@ -1,5 +1,7 @@
 {
   "name": "Socratic Notes",
   "description": "A cognitive note-taking assistant that uses Socratic questioning to deepen understanding before synthesizing structured, Notion-ready notes with diagrams.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

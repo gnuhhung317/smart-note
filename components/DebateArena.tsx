@@ -1,9 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Swords, Send, Shield, Zap, Skull, Trophy, AlertTriangle, RefreshCw, Download } from 'lucide-react';
+import { Swords, Send, Shield, Zap, Skull, Trophy, AlertTriangle, RefreshCw, Download, Mic, MicOff, Bot, Key, X } from 'lucide-react';
 import { DebateDifficulty, DebateScorecard, Language } from '../types';
-import { initiateDebate, continueDebate, gradeDebate } from '../services/geminiService';
+import { initiateDebate, continueDebate, gradeDebate, runAutoDebateTurn } from '../services/geminiService';
+import { getSecondaryApiKey, saveSecondaryApiKey, getEnvApiKey } from '../services/storageService';
 import MarkdownRenderer from './MarkdownRenderer';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface DebateArenaProps {
     language: Language;
@@ -20,12 +22,43 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
   // Battle Data
   const [messages, setMessages] = useState<{role: 'USER' | 'AI', content: string}[]>([]);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // Opponent typing
+  const [isAllyTyping, setIsAllyTyping] = useState(false); // Ally typing
+  
+  // Auto Debate State
+  const [isAutoDebating, setIsAutoDebating] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [secondaryKeyInput, setSecondaryKeyInput] = useState('');
   
   // Verdict Data
   const [scorecard, setScorecard] = useState<DebateScorecard | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Speech Recognition Hook
+  const { 
+    isListening, 
+    transcript, 
+    startListening, 
+    stopListening, 
+    resetTranscript,
+    hasSupport: hasSpeechSupport 
+  } = useSpeechRecognition(language);
+
+  // Sync speech transcript to input
+  useEffect(() => {
+    if (transcript) {
+        setInput(transcript);
+    }
+  }, [transcript]);
+
+  const toggleListening = () => {
+      if (isListening) {
+          stopListening();
+      } else {
+          startListening();
+      }
+  };
 
   // Translations
   const text = {
@@ -43,6 +76,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
           modeHard: "Hard",
           modeExtreme: "God Mode",
           typing: "Opponent is formulating an attack...",
+          allyTyping: "Ally Bot is arguing for you...",
           verdictTitle: "Match Results",
           judgesVoting: "The Judges are voting...",
           scoreLogic: "Logic Score",
@@ -54,7 +88,13 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
           draw: "DRAW",
           defender: "Defender",
           opponent: "Opponent",
-          placeholderInput: "Type your rebuttal..."
+          placeholderInput: "Type your rebuttal...",
+          autoTitle: "Auto-Debate Mode",
+          autoDesc: "Enable a secondary AI to argue on your behalf.",
+          keyRequired: "Secondary API Key Required",
+          keyDesc: "To use Auto-Debate, you need a separate API Key for the 'Ally' bot. This prevents rate-limiting issues and separates usage.",
+          saveKey: "Save Key & Enable",
+          cancel: "Cancel"
       },
       vi: {
           title: "Đấu trường Tranh biện",
@@ -70,6 +110,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
           modeHard: "Khó",
           modeExtreme: "Cực gắt",
           typing: "Đối thủ đang soạn đòn tấn công...",
+          allyTyping: "Bot đồng minh đang phản biện...",
           verdictTitle: "Kết quả Trận đấu",
           judgesVoting: "Ban giám khảo đang chấm điểm...",
           scoreLogic: "Điểm Logic",
@@ -81,17 +122,104 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
           draw: "HÒA",
           defender: "Người bảo vệ",
           opponent: "Đối thủ",
-          placeholderInput: "Nhập luận điểm phản bác..."
+          placeholderInput: "Nhập luận điểm phản bác...",
+          autoTitle: "Chế độ Tự động",
+          autoDesc: "Bật AI phụ để tranh biện thay bạn.",
+          keyRequired: "Cần API Key Phụ",
+          keyDesc: "Để dùng chế độ Tự động, bạn cần một API Key riêng cho Bot 'Đồng minh'. Việc này giúp tránh lỗi giới hạn tốc độ (rate-limit).",
+          saveKey: "Lưu Key & Bật",
+          cancel: "Hủy"
       }
   };
   const t = text[language];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, isAllyTyping]);
+
+  // --- AUTO DEBATE LOGIC ---
+
+  const handleToggleAuto = () => {
+    if (isAutoDebating) {
+        setIsAutoDebating(false);
+        return;
+    }
+
+    // Priority 1: Use Env Key if available
+    if (getEnvApiKey()) {
+        setIsAutoDebating(true);
+        return;
+    }
+
+    // Priority 2: Use Secondary Key from storage
+    const secondaryKey = getSecondaryApiKey();
+    if (!secondaryKey) {
+        setShowKeyModal(true);
+    } else {
+        setIsAutoDebating(true);
+    }
+  };
+
+  const handleSaveSecondaryKey = () => {
+      if (secondaryKeyInput.trim()) {
+          saveSecondaryApiKey(secondaryKeyInput.trim());
+          setShowKeyModal(false);
+          setIsAutoDebating(true);
+      }
+  };
+
+  // The Main Loop for Auto Debate
+  useEffect(() => {
+    const runAutoLoop = async () => {
+        // Condition: Auto is ON, It is NOT currently typing, and the last message was from AI (so it's User/Ally turn)
+        if (isAutoDebating && !isTyping && !isAllyTyping && messages.length > 0 && messages[messages.length - 1].role === 'AI') {
+            
+            // Determine which key to use
+            const envKey = getEnvApiKey();
+            const secKey = getSecondaryApiKey();
+            const apiKeyToUse = envKey || secKey;
+
+            if (!apiKeyToUse) {
+                // Should not happen if logic in toggle is correct, but safe guard
+                setIsAutoDebating(false);
+                return;
+            }
+
+            setIsAllyTyping(true);
+            try {
+                // 1. Ally Generates Reply
+                const allyReply = await runAutoDebateTurn(messages, topic, apiKeyToUse, language);
+                
+                // 2. Update History with USER role (Ally acts as User)
+                const newHistory = [...messages, { role: 'USER' as const, content: allyReply }];
+                setMessages(newHistory);
+                setIsAllyTyping(false);
+
+                // 3. Trigger Opponent Response immediately
+                setIsTyping(true);
+                const opponentReply = await continueDebate(newHistory, difficulty, language);
+                setMessages(prev => [...prev, { role: 'AI', content: opponentReply }]);
+
+            } catch (e) {
+                console.error("Auto Debate Error", e);
+                setIsAutoDebating(false);
+            } finally {
+                setIsAllyTyping(false);
+                setIsTyping(false);
+            }
+        }
+    };
+
+    runAutoLoop();
+  }, [isAutoDebating, messages, isTyping, isAllyTyping, topic, difficulty, language]);
+
+
+  // --- STANDARD GAME LOGIC ---
 
   const handleStart = async () => {
     if (!topic.trim()) return;
+    
+    if (isListening) stopListening();
     
     setPhase('BATTLE');
     setIsTyping(true);
@@ -110,8 +238,14 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
   const handleSend = async () => {
     if (!input.trim()) return;
     
+    // If user manually sends, we pause auto mode to let them intervene
+    if (isAutoDebating) setIsAutoDebating(false);
+    if (isListening) stopListening();
+    
     const userMsg = input;
     setInput('');
+    resetTranscript();
+
     const newHistory = [...messages, { role: 'USER' as const, content: userMsg }];
     setMessages(newHistory);
     setIsTyping(true);
@@ -128,6 +262,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
 
   const handleConcede = async () => {
     setPhase('VERDICT');
+    setIsAutoDebating(false);
     setIsTyping(true);
     try {
         const result = await gradeDebate(messages, topic, language);
@@ -144,6 +279,7 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
       setTopic('');
       setMessages([]);
       setScorecard(null);
+      setIsAutoDebating(false);
   }
   
   const handleExportJSON = () => {
@@ -189,16 +325,33 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
             </div>
 
             <div className="w-full bg-white p-8 rounded-2xl shadow-xl border border-gray-200 space-y-8 animate-in zoom-in-95 duration-500">
-                <div>
+                <div className="relative">
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                         {t.labelTopic}
                     </label>
                     <textarea 
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        placeholder={t.placeholderTopic}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all min-h-[100px] text-lg"
+                        value={input || topic} // Use input if available (from speech), else topic
+                        onChange={(e) => {
+                            setTopic(e.target.value);
+                            setInput(e.target.value);
+                        }}
+                        placeholder={isListening ? (language === 'vi' ? 'Đang nghe...' : 'Listening...') : t.placeholderTopic}
+                        className={`w-full bg-gray-50 border rounded-xl p-4 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all min-h-[100px] text-lg
+                        ${isListening ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`}
                     />
+                     {/* Mic Button Absolute */}
+                     {hasSpeechSupport && (
+                        <button
+                            onClick={toggleListening}
+                            className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${
+                                isListening
+                                    ? 'bg-red-500 text-white animate-pulse shadow-md' 
+                                    : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200 shadow-sm'
+                            }`}
+                        >
+                            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                        </button>
+                    )}
                 </div>
 
                 <div>
@@ -232,9 +385,9 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
 
                 <button 
                     onClick={handleStart}
-                    disabled={!topic.trim()}
+                    disabled={!topic.trim() && !input.trim()}
                     className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2
-                        ${!topic.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}
+                        ${!topic.trim() && !input.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}
                     `}
                 >
                     <Swords className="w-5 h-5" /> {t.btnStart}
@@ -321,7 +474,40 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
 
   // BATTLE PHASE
   return (
-    <div className="flex flex-col h-full bg-gray-100">
+    <div className="flex flex-col h-full bg-gray-100 relative">
+        
+        {/* Secondary Key Modal */}
+        {showKeyModal && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 border border-gray-200">
+                    <div className="flex justify-between items-center mb-4">
+                         <div className="flex items-center gap-2 text-indigo-600 font-bold">
+                             <Key className="w-5 h-5" /> {t.keyRequired}
+                         </div>
+                         <button onClick={() => setShowKeyModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">{t.keyDesc}</p>
+                    <input 
+                        type="password"
+                        value={secondaryKeyInput}
+                        onChange={(e) => setSecondaryKeyInput(e.target.value)}
+                        placeholder="AIzaSy... (Secondary Key)"
+                        className="w-full border border-gray-300 rounded-lg p-3 mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <div className="flex gap-3 justify-end">
+                        <button onClick={() => setShowKeyModal(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">{t.cancel}</button>
+                        <button 
+                            onClick={handleSaveSecondaryKey}
+                            disabled={!secondaryKeyInput.trim()}
+                            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            {t.saveKey}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Header */}
         <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center shadow-sm z-10">
             <div className="flex items-center gap-3">
@@ -360,6 +546,8 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
                     </div>
                 </div>
             ))}
+            
+            {/* Status Indicators */}
             {isTyping && (
                 <div className="flex justify-start w-full">
                      <div className="bg-white text-gray-500 border border-gray-200 p-4 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-2 text-sm font-mono">
@@ -367,6 +555,15 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
                      </div>
                 </div>
             )}
+            
+            {isAllyTyping && (
+                <div className="flex justify-end w-full">
+                     <div className="bg-indigo-50 text-indigo-600 border border-indigo-200 p-4 rounded-2xl rounded-br-none shadow-sm flex items-center gap-2 text-sm font-mono">
+                        <Bot className="w-4 h-4 animate-bounce" /> {t.allyTyping}
+                     </div>
+                </div>
+            )}
+            
             <div ref={messagesEndRef} />
         </div>
 
@@ -377,14 +574,46 @@ const DebateArena: React.FC<DebateArenaProps> = ({ language }) => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={t.placeholderInput}
-                    className="w-full bg-gray-100 border-0 rounded-xl p-4 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none max-h-32 min-h-[60px]"
+                    placeholder={isListening ? (language === 'vi' ? 'Đang nghe...' : 'Listening...') : t.placeholderInput}
+                    className={`w-full bg-gray-100 border rounded-xl p-4 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none max-h-32 min-h-[60px]
+                    ${isListening ? 'border-red-400 ring-2 ring-red-100 bg-red-50' : 'border-0'}`}
                 />
+                
+                {/* Tools Container */}
+                <div className="absolute bottom-3 right-[4.5rem] flex gap-2">
+                    {/* Auto Debate Toggle */}
+                    <button
+                        onClick={handleToggleAuto}
+                        className={`p-2 rounded-full transition-all border shadow-sm flex items-center gap-1 ${
+                            isAutoDebating 
+                            ? 'bg-indigo-100 text-indigo-600 border-indigo-300 ring-1 ring-indigo-200' 
+                            : 'bg-white text-gray-500 hover:bg-gray-100 border-gray-200'
+                        }`}
+                        title={isAutoDebating ? "Stop Auto-Debate" : "Start Auto-Debate (Ally Bot)"}
+                    >
+                         <Bot className="w-5 h-5" />
+                         {isAutoDebating && <span className="text-xs font-bold px-1 animate-pulse">ON</span>}
+                    </button>
+
+                    {hasSpeechSupport && (
+                        <button
+                            onClick={toggleListening}
+                            className={`p-2 rounded-full transition-all ${
+                                isListening
+                                    ? 'bg-red-500 text-white animate-pulse shadow-md' 
+                                    : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200 shadow-sm'
+                            }`}
+                        >
+                            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                        </button>
+                    )}
+                </div>
+
                 <button
                     onClick={handleSend}
-                    disabled={!input.trim() || isTyping}
+                    disabled={(!input.trim() && !isAutoDebating) || isTyping || isAllyTyping}
                     className={`p-4 rounded-xl transition-all h-[60px] w-[60px] flex items-center justify-center shrink-0
-                        ${input.trim() && !isTyping ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                        ${(input.trim() || isAutoDebating) && !isTyping && !isAllyTyping ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     `}
                 >
                     <Send className="w-6 h-6" />

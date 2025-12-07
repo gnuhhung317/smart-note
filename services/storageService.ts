@@ -3,6 +3,7 @@ import { ChatSession, Language } from '../types';
 
 const STORAGE_KEY = 'socratic_notes_sessions';
 const API_KEY_STORAGE = 'socratic_notes_api_key';
+const SECONDARY_API_KEY_STORAGE = 'socratic_notes_secondary_api_key';
 const LANGUAGE_STORAGE = 'socratic_notes_language';
 
 export const loadSessions = (): ChatSession[] => {
@@ -50,8 +51,7 @@ export const createNewSession = (): ChatSession => {
 };
 
 // API Key Management
-export const getApiKey = (): string | null => {
-  // Priority 1: Check Environment Variable (Safely)
+export const getEnvApiKey = (): string | null => {
   try {
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
       return process.env.API_KEY;
@@ -59,6 +59,13 @@ export const getApiKey = (): string | null => {
   } catch (e) {
     // Ignore error if process is not defined
   }
+  return null;
+};
+
+export const getApiKey = (): string | null => {
+  // Priority 1: Check Environment Variable
+  const envKey = getEnvApiKey();
+  if (envKey) return envKey;
   
   // Priority 2: Check Local Storage
   return localStorage.getItem(API_KEY_STORAGE);
@@ -70,6 +77,19 @@ export const saveApiKey = (key: string) => {
 
 export const removeApiKey = () => {
   localStorage.removeItem(API_KEY_STORAGE);
+};
+
+// Secondary API Key Management (For Auto-Debate)
+export const getSecondaryApiKey = (): string | null => {
+  return localStorage.getItem(SECONDARY_API_KEY_STORAGE);
+};
+
+export const saveSecondaryApiKey = (key: string) => {
+  localStorage.setItem(SECONDARY_API_KEY_STORAGE, key);
+};
+
+export const removeSecondaryApiKey = () => {
+  localStorage.removeItem(SECONDARY_API_KEY_STORAGE);
 };
 
 // Language Management

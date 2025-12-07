@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale, Trash2, Check } from 'lucide-react';
+import { Send, Copy, Layers, BookOpen, RefreshCw, Zap, Lightbulb, BrainCircuit, Menu, Wrench, Scale, Trash2, Check, Mic, MicOff } from 'lucide-react';
 import { initializeChat, sendMessageStream, synthesizeNote, generateSessionTitle } from './services/geminiService';
 import { loadSessions, saveSession, createNewSession, deleteSession, getApiKey, saveApiKey, getStoredLanguage, saveStoredLanguage } from './services/storageService';
 import { Message, MessageType, Sender, AppState, ChatSession, ViewMode, Language } from './types';
@@ -12,6 +12,7 @@ import DecisionLab from './components/DecisionLab';
 import SixHats from './components/SixHats';
 import FirstPrinciples from './components/FirstPrinciples';
 import DebateArena from './components/DebateArena';
+import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -35,6 +36,38 @@ const App: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Speech Recognition Hook
+  const { 
+    isListening, 
+    transcript, 
+    startListening, 
+    stopListening, 
+    resetTranscript,
+    hasSupport: hasSpeechSupport 
+  } = useSpeechRecognition(language);
+
+  // Sync speech transcript to input
+  useEffect(() => {
+    if (transcript) {
+        // Simple logic: If listening, replace input or append. 
+        // For smoother UX, we'll replace the *current typing session* with the transcript
+        // But to avoid overwriting previous manual typing if they speak mid-sentence, 
+        // a robust way is challenging without cursor tracking.
+        // Simplification: We assume voice input is the primary input method when active.
+        setInput(transcript);
+    }
+  }, [transcript]);
+
+  // When listening stops, we keep the input as is.
+
+  const toggleListening = () => {
+      if (isListening) {
+          stopListening();
+      } else {
+          startListening();
+      }
+  };
 
   // Initialize: Check for API Key
   useEffect(() => {
@@ -249,8 +282,11 @@ const App: React.FC = () => {
   const handleSend = async () => {
     if (!input.trim() || appState === AppState.SYNTHESIZING || !currentSessionId) return;
 
+    if (isListening) stopListening();
+
     const userMsg = input;
     setInput('');
+    resetTranscript(); // Clear speech buffer
     addMessageToSession(Sender.USER, userMsg);
     setAppState(AppState.CHATTING);
     setStreamingContent('');
@@ -453,12 +489,12 @@ const App: React.FC = () => {
                 {/* Footer Input */}
                 <footer className="p-4 bg-white border-t border-notion-border shrink-0">
                     <div className="max-w-4xl mx-auto relative">
-                    <div className="relative flex items-end gap-2 bg-notion-sidebar rounded-xl p-2 border border-notion-border focus-within:ring-2 focus-within:ring-gray-200 focus-within:border-gray-400 transition-all">
+                    <div className={`relative flex items-end gap-2 bg-notion-sidebar rounded-xl p-2 border transition-all ${isListening ? 'border-red-400 ring-2 ring-red-100' : 'border-notion-border focus-within:ring-2 focus-within:ring-gray-200 focus-within:border-gray-400'}`}>
                         <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={language === 'vi' ? "Nhập ý tưởng, khái niệm hoặc 'Tổng hợp' để tạo ghi chú..." : "Type an idea, a concept, or 'Synthesize' to finish..."}
+                        placeholder={isListening ? (language === 'vi' ? 'Đang nghe...' : 'Listening...') : (language === 'vi' ? "Nhập ý tưởng, khái niệm hoặc 'Tổng hợp' để tạo ghi chú..." : "Type an idea, a concept, or 'Synthesize' to finish...")}
                         className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[50px] py-3 px-2 text-gray-800 placeholder-gray-400"
                         rows={1}
                         style={{ minHeight: '52px' }}
@@ -466,6 +502,22 @@ const App: React.FC = () => {
                         
                         {/* Tools / Actions */}
                         <div className="flex items-center gap-1.5 pb-2 pr-1">
+                        
+                        {hasSpeechSupport && (
+                             <button
+                                onClick={toggleListening}
+                                className={`p-2 rounded-full transition-all ${
+                                isListening
+                                    ? 'bg-red-500 text-white animate-pulse shadow-md' 
+                                    : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
+                                }`}
+                                title="Voice Input"
+                            >
+                                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                            </button>
+                        )}
+                        
+                        <div className="w-px h-6 bg-gray-300 mx-1"></div>
                             
                         <button
                             onClick={handleAnalogy}

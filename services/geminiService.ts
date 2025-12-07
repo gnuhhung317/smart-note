@@ -313,6 +313,40 @@ export const continueDebate = async (history: {role: string, content: string}[],
     return response.text || "I disagree.";
 };
 
+export const runAutoDebateTurn = async (
+    history: {role: string, content: string}[], 
+    topic: string, 
+    apiKey: string, 
+    lang: Language
+): Promise<string> => {
+    // Instantiate a new client with the Secondary API Key
+    const ai = new GoogleGenAI({ apiKey });
+
+    const systemInstruction = `
+    You are an "Ally Debater". 
+    Role: You are arguing IN FAVOR of the Topic: "${topic}".
+    Goal: Defend this topic against the Opponent. Win the argument using logic, facts, and rhetoric.
+    Context: You are replying to the Opponent.
+    Constraint: Keep it under 80 words. Be sharp and persuasive.
+    ${getLangPrompt(lang)}
+    `;
+
+    // Convert history format. 
+    // IMPORTANT: In the Ally's eyes, the "USER" messages are its own previous turns, and "AI" messages are the opponent.
+    const contents = history.map(h => ({
+        role: h.role === 'USER' ? 'model' : 'user', // Invert roles for the Ally's perspective
+        parts: [{ text: h.content }]
+    }));
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: contents,
+        config: { systemInstruction }
+    });
+
+    return response.text || "I stand by my point.";
+};
+
 export const gradeDebate = async (history: {role: string, content: string}[], topic: string, lang: Language): Promise<DebateScorecard | null> => {
     const ai = getClient();
     const systemInstruction = `
